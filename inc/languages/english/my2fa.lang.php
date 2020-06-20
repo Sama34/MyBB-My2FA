@@ -25,3 +25,5 @@ $l['my2fa_totp_instruction_3'] = "After scanning the barcode image, the app will
 $l['my2fa_totp_manual_secret_key_1'] = "If you can’t use a barcode,";
 $l['my2fa_totp_manual_secret_key_2'] = "enter this text code instead";
 $l['my2fa_totp_secret_key'] = "Your two-factor secret";
+
+$l['my2fa_force_modcp'] = 'Two-factor authentication is required to use the ModCP. You will now be redirected to the UserCP to activate 2FA.';

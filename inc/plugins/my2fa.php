@@ -34,6 +34,11 @@ $plugins->add_hook('usercp_start', 'my2fa_usercp_start');
 
 $plugins->add_hook('build_friendly_wol_location_end', 'my2fa_build_wol_location');
 
+$plugins->add_hook("modcp_start", "my2fa_modcp_start");
+
+$plugins->add_hook("admin_load", "my2fa_admin_do_login");
+$plugins->add_hook("admin_formcontainer_output_row", "my2fa_admin_formcontainer_output_row");
+
 function my2fa_info()
 {
     return [
@@ -118,9 +123,11 @@ function my2fa_is_installed()
 
 function my2fa_activate()
 {
-    global $PL, $mybb;
+    global $PL, $mybb, $lang;
 
     my2fa_load_dependencies();
+
+    \My2FA\loadLanguage();
 
     $PL->settings('my2fa',
         "My2FA",
@@ -132,6 +139,18 @@ function my2fa_activate()
                                   <br><strong>Spaces are not allowed</strong>, they will be automatically replaced by a hyphen (-).",
                 'optionscode' => "text",
                 'value'       => My2FA\getQrCodeParameterSanitized($mybb->settings['bbname'])
+            ],
+            'forceacp' => [
+                'title'       => $lang->setting_my2fa_forceacp,
+                'description' => $lang->setting_my2fa_forceacp_desc,
+                'optionscode' => "yesno",
+                'value'       => 0
+            ],
+            'forcemodcp' => [
+                'title'       => $lang->setting_my2fa_forcemodcp,
+                'description' => $lang->setting_my2fa_forcemodcp_desc,
+                'optionscode' => "yesno",
+                'value'       => 0
             ],
         ]
     );
@@ -309,4 +328,61 @@ function my2fa_build_wol_location(&$wol)
 
         $wol['location_name'] = $lang->my2fa_usercp_wol;
     }
+}
+
+function my2fa_modcp_start()
+{
+	global $mybb, $lang, $admin_options;
+
+	if(!$mybb->user['uid'] || !empty($mybb->user['has_my2fa']))
+	{
+	    return;
+	}
+
+	if($mybb->settings['my2fa_forcemodcp'])
+	{
+        My2FA\loadLanguage();
+
+		redirect('usercp.php?action=my2fa', $lang->my2fa_force_modcp, $lang->my2fa_title, true);
+	}
+}
+
+function my2fa_admin_do_login()
+{
+	global $mybb, $lang, $admin_options;
+
+	if($mybb->get_input('module') == 'home-preferences' || !$mybb->user['uid'] || !empty($mybb->user['has_my2fa']))
+	{
+	    return;
+	}
+
+	if($mybb->settings['my2fa_forceacp'])
+	{
+        My2FA\loadLanguage();
+
+		flash_message($lang->sprintf($lang->my2fa_forced_acp, $mybb->settings['bburl']), 'error');
+
+		admin_redirect('index.php?module=home-preferences');
+	}
+}
+
+function my2fa_admin_formcontainer_output_row(&$args)
+{
+	global$lang, $admin_options, $mybb, $db;
+
+	if(empty($args['title']) || empty($lang->my2fa) || ($args['title'] != $lang->my2fa && my_strpos($args['title'], $lang->my2fa_qr) === false))
+	{
+		return;
+	}
+
+	if(!empty($admin_options['authsecret']))
+	{
+		$uid = (int)$mybb->user['uid'];
+        $db->update_query('adminoptions', array('authsecret' => ''), "uid='{$uid}'");
+        $db->update_query("adminsessions", array("authenticated" => 0), "uid='{$uid}'");
+	}
+
+	$args['title'] = $args['content'] = $args['description'] = '';
+
+	$args['options']['style'] = 'display: none !important;';
 }
