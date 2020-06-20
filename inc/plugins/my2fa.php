@@ -34,7 +34,7 @@ $plugins->add_hook('usercp_start', 'my2fa_usercp_start');
 
 $plugins->add_hook('build_friendly_wol_location_end', 'my2fa_build_wol_location');
 
-$plugins->add_hook("modcp_start", "my2fa_modcp_start");
+$plugins->add_hook("global_end", "my2fa_global_end");
 
 $plugins->add_hook("admin_load", "my2fa_admin_do_login");
 $plugins->add_hook("admin_formcontainer_output_row", "my2fa_admin_formcontainer_output_row");
@@ -150,6 +150,12 @@ function my2fa_activate()
                 'title'       => $lang->setting_my2fa_forcemodcp,
                 'description' => $lang->setting_my2fa_forcemodcp_desc,
                 'optionscode' => "yesno",
+                'value'       => 0
+            ],
+            'forcegroups' => [
+                'title'       => $lang->setting_my2fa_forcegroups,
+                'description' => $lang->setting_my2fa_forcegroups_desc,
+                'optionscode' => "groupselect",
                 'value'       => 0
             ],
         ]
@@ -330,21 +336,35 @@ function my2fa_build_wol_location(&$wol)
     }
 }
 
-function my2fa_modcp_start()
+function my2fa_global_end()
 {
-	global $mybb, $lang, $admin_options;
+	global $mybb, $lang, $plugins;
 
 	if(!$mybb->user['uid'] || !empty($mybb->user['has_my2fa']))
 	{
 	    return;
 	}
 
-	if($mybb->settings['my2fa_forcemodcp'])
+	if(is_member($mybb->settings['my2fa_forcegroups']))
 	{
         My2FA\loadLanguage();
 
-		redirect('usercp.php?action=my2fa', $lang->my2fa_force_modcp, $lang->my2fa_title, true);
-	}
+		redirect('usercp.php?action=my2fa', $lang->my2fa_force_groups, $lang->my2fa_title, true);
+    }
+
+    if($mybb->settings['my2fa_forcemodcp'])
+    {
+        $plugins->add_hook("modcp_start", "my2fa_modcp_start");
+    }
+}
+
+function my2fa_modcp_start()
+{
+	global $lang;
+
+    My2FA\loadLanguage();
+
+    redirect('usercp.php?action=my2fa', $lang->my2fa_force_modcp, $lang->my2fa_title, true);
 }
 
 function my2fa_admin_do_login()
@@ -356,7 +376,7 @@ function my2fa_admin_do_login()
 	    return;
 	}
 
-	if($mybb->settings['my2fa_forceacp'])
+	if($mybb->settings['my2fa_forceacp'] || is_member($mybb->settings['my2fa_forcegroups']))
 	{
         My2FA\loadLanguage();
 
