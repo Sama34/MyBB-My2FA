@@ -7,6 +7,7 @@
 	</tr>
 	{$my2faUsercpMethodRows}
 </table>
+{$my2faUsercpRecovery}
 <script>
 	var my2faDisableButtons = $('.my2fa__button--disable');
 	my2faDisableButtons.on('click', function(event) {

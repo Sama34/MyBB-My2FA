@@ -72,6 +72,15 @@ function my2fa_install()
     );
 
     $db->write_query("
+        CREATE TABLE IF NOT EXISTS `".TABLE_PREFIX."my2fa_recovery` (
+            `id` int unsigned NOT NULL AUTO_INCREMENT,
+            `uid` int unsigned NOT NULL,
+            `codes` varchar(255) NOT NULL DEFAULT '',
+        PRIMARY KEY (id)
+        ) ENGINE=InnoDB" . $db->build_create_table_collation()
+    );
+
+    $db->write_query("
         CREATE TABLE IF NOT EXISTS `".TABLE_PREFIX."my2fa_logs` (
             `id` int unsigned NOT NULL AUTO_INCREMENT,
             `uid` int unsigned NOT NULL,
@@ -156,7 +165,7 @@ function my2fa_activate()
                 'title'       => $lang->setting_my2fa_forcegroups,
                 'description' => $lang->setting_my2fa_forcegroups_desc,
                 'optionscode' => "groupselect",
-                'value'       => 4
+                'value'       => 0
             ],
         ]
     );
@@ -229,7 +238,7 @@ function my2fa_usercp_menu_built()
 function my2fa_usercp_start()
 {
     global $mybb, $db, $lang,
-    $headerinclude, $header, $theme, $usercpnav, $footer;
+    $headerinclude, $header, $theme, $usercpnav, $footer, $plugins;
 
     My2FA\loadLanguage();
 
@@ -242,6 +251,8 @@ function my2fa_usercp_start()
 
     $methods = My2FA\getMethods();
     $userVerifiedMethods = My2FA\getUserVerifiedMethods();
+
+    $mybb->user['uid'] = (int)$mybb->user['uid'];
 
     if (
         isset($methods[$mybb->input['method']]) &&
@@ -277,6 +288,62 @@ function my2fa_usercp_start()
             ){
                 $my2faUsercpContent = $method['className']::getManagementForm();
             }
+        }
+    }
+    elseif($mybb->get_input('manage', MyBB::INPUT_STRING) === 'recovery')
+    {
+        if($mybb->get_input('generate', MyBB::INPUT_INT) === 1)
+        {
+            $codes = [];
+
+            for($i=1; $i <= 10; ++$i)
+            {
+                $codes[My2FA\generateCode()] = 1;
+            }
+
+            $updateData = [
+                'uid' => $mybb->user['uid'],
+                'codes' => json_encode($codes),
+            ];
+
+	        $plugins->run_hooks("my2fa_recovery_generate_start",  $updateData);
+
+            $query = $db->simple_select('my2fa_recovery', 'id', "uid='{$mybb->user['uid']}'");
+
+            if($id = $db->fetch_field($query, 'id'))
+            {
+                $db->update_query('my2fa_recovery', $updateData, "uid='{$mybb->user['uid']}'");
+            }
+            else
+            {
+                $db->insert_query('my2fa_recovery', $updateData, "uid='{$mybb->user['uid']}'");
+            }
+
+            if($lang->settings['charset'])
+            {
+                $charset = $lang->settings['charset'];
+            }
+            else
+            {
+                $charset = "UTF-8";
+            }
+
+            header("Content-type: application/json; charset={$charset}");
+
+            $usedClass = $recoveryCodesList = '';
+
+            foreach($codes as $code => $status)
+            {
+                eval('$recoveryCodesList .= "' . My2FA\template('usercp_button_recovery_codes_code') . '";');
+            }
+
+            eval('$recoveryCodes = "' . My2FA\template('usercp_button_recovery_codes') . '";');
+
+            $codes = ['success' => 1, 'content' => $recoveryCodes];
+
+            echo json_encode($codes);
+
+            exit;
         }
     }
     else
@@ -318,10 +385,47 @@ function my2fa_usercp_start()
             }
         }
 
+        $my2faUsercpRecovery = '';
+
+        $query = $db->simple_select('my2fa_recovery', 'codes', "uid='{$mybb->user['uid']}'", ['limit' => 1]);
+
+        $userCodes = $db->fetch_field($query, 'codes');
+
+        if(!empty($userCodes))
+        {
+            $userCodes = json_decode($userCodes, true);
+
+            $recoveryCodesList = '';
+
+            foreach($userCodes as $code => $status)
+            {
+                $usedClass = '';
+
+                if(!$status)
+                {
+                    $usedClass = 'my2fa__code-used';
+                }
+
+                eval('$recoveryCodesList .= "' . My2FA\template('usercp_button_recovery_codes_code') . '";');
+            }
+
+            eval('$recoveryCodes = "' . My2FA\template('usercp_button_recovery_codes') . '";');
+        }
+        else
+        {
+            $recoveryCodes = $lang->my2fa_recovery_empty;
+        }
+
+        if(!empty($userMethod))
+        {
+            eval('$my2faUsercpRecovery = "' . My2FA\template('usercp_button_recovery') . '";');
+        }
+
         eval('$my2faUsercpContent = "' . My2FA\template('usercp_methods') . '";');
     }
 
     eval('$my2faUsercpPage = "' . My2FA\template('usercp') . '";');
+
     output_page($my2faUsercpPage);
 }
 
@@ -338,18 +442,18 @@ function my2fa_build_wol_location(&$wol)
 
 function my2fa_global_end()
 {
-	global $mybb, $lang, $plugins;
+    global $mybb, $lang, $plugins;
 
-	if(!$mybb->user['uid'] || !empty($mybb->user['has_my2fa']))
-	{
-	    return;
-	}
+    if(!$mybb->user['uid'] || !empty($mybb->user['has_my2fa']))
+    {
+        return;
+    }
 
-	if(is_member($mybb->settings['my2fa_forcegroups']))
-	{
+    if(is_member($mybb->settings['my2fa_forcegroups']))
+    {
         My2FA\loadLanguage();
 
-		redirect('usercp.php?action=my2fa', $lang->my2fa_force_groups, $lang->my2fa_title, true);
+        redirect('usercp.php?action=my2fa', $lang->my2fa_force_groups, $lang->my2fa_title, true);
     }
 
     if($mybb->settings['my2fa_forcemodcp'])
@@ -360,7 +464,7 @@ function my2fa_global_end()
 
 function my2fa_modcp_start()
 {
-	global $lang;
+    global $lang;
 
     My2FA\loadLanguage();
 

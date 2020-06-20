@@ -170,3 +170,17 @@ function loadLanguage(): void
         $isLangLoaded = True;
     }
 }
+
+function generateCode()
+{
+	srand((double)microtime()*1000000);
+
+    $code = '';
+
+	for($i=1; $i <= 10; ++$i)
+	{
+		$code .= substr('abcdefghijklmnopqrstuvwxyz0123456789', rand() % 33, 1);
+    }
+
+    return $code;
+}
