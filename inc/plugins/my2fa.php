@@ -156,7 +156,7 @@ function my2fa_activate()
                 'title'       => $lang->setting_my2fa_forcegroups,
                 'description' => $lang->setting_my2fa_forcegroups_desc,
                 'optionscode' => "groupselect",
-                'value'       => 0
+                'value'       => 4
             ],
         ]
     );
